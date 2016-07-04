@@ -1,0 +1,108 @@
+#include <I2Cdev.h>
+#include <Wire.h>
+#include <MPU6050.h>
+ 
+//Endereco I2C do MPU6050
+
+const int MPU=0x68;  //pino aberto 0X68 , pino ligado em 3,3V 0x69
+
+int16_t ax, ay, az, gx, gy, gz;
+
+double timeStep, time, timePrev;
+double arx, ary, arz, grx, gry, grz, gsx, gsy, gsz, rx, ry, rz, temperatura;
+
+int i;
+double gyroScale = 131;
+
+void setup() {
+
+
+  Serial.begin(9600); //inicia a comunicação serial
+  Wire.begin();                 //inicia I2C
+  Wire.beginTransmission(MPU);  //Inicia transmissão para o endereço do MPU
+  Wire.write(0x6B);             
+   
+  //Inicializa o MPU-6050
+  Wire.write(0); 
+  Wire.endTransmission(true);
+
+  time = millis();
+
+  i = 1;
+
+}
+
+void loop() {
+
+  // set up time for integration
+  timePrev = time;
+  time = millis();
+  timeStep = (time - timePrev) / 1000; // time-step in s
+
+  Wire.beginTransmission(MPU);      //transmite
+  Wire.write(0x3B);                 // Endereço 0x3B (ACCEL_XOUT_H)
+  Wire.endTransmission(false);     //Finaliza transmissão
+  
+  Wire.requestFrom(MPU,14,true);   //requisita bytes
+
+    //Armazena o valor dos sensores nas variaveis correspondentes
+  gx=Wire.read()<<8|Wire.read();  //0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)     
+  gy=Wire.read()<<8|Wire.read();  //0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
+  gz=Wire.read()<<8|Wire.read();  //0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
+  temperatura=Wire.read()<<8|Wire.read();  //0x41 (TEMP_OUT_H) & 0x42 (TEMP_OUT_L)
+  ax=Wire.read()<<8|Wire.read();  //0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
+  ay=Wire.read()<<8|Wire.read();  //0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
+  az=Wire.read()<<8|Wire.read();  //0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
+
+  // apply gyro scale from datasheet
+  gsx = gx/gyroScale;   gsy = gy/gyroScale;   gsz = gz/gyroScale;
+
+  // calculate accelerometer angles
+  //arx =  atan(ax / sqrt(square(ay) + square(az))); 
+  //ary =  atan(ay / sqrt(square(ax) + square(az)));
+  //arz =  atan(sqrt(square(ay) + square(ax)) / az);
+
+ arx = (180/3.141592) * atan(ax / sqrt(square(ay) + square(az))); 
+ ary = (180/3.141592) * atan(ay / sqrt(square(ax) + square(az)));
+ arz = (180/3.141592) * atan(sqrt(square(ay) + square(ax)) / az);
+  // set initial values equal to accel values
+  if (i == 1) {
+    grx = arx;
+    gry = ary;
+    grz = arz;
+  }
+  // integrate to find the gyro angle
+  else{
+    grx = grx + (timeStep * gsx);
+    gry = gry + (timeStep * gsy);
+    grz = grz + (timeStep * gsz);
+  }  
+
+  // apply filter
+  rx = (0.1 * arx) + (0.9 * grx);
+  ry = (0.1 * ary) + (0.9 * gry);
+  rz = (0.1 * arz) + (0.9 * grz);
+
+  // print result
+  //Serial.print(ax);   Serial.print("\t");
+  //Serial.print(ay);   Serial.print("\t");
+  //Serial.print(az);   Serial.print("\t\t");
+  //Serial.print(gx);   Serial.print("\t");
+  //Serial.print(gy);   Serial.print("\t");
+  //Serial.print(gz);   Serial.print("\t\t");
+  
+  Serial.print(arx);   Serial.print("\t");
+  Serial.print(ary);   Serial.print("\t");
+  Serial.print(arz);   Serial.print("\t\t");
+  Serial.print(grx);   Serial.print("\t");
+  Serial.print(gry);   Serial.print("\t");
+  Serial.println(grz);   Serial.print("\t\t");
+  
+  //Serial.print(rx);   Serial.print("\t");
+  //Serial.print(ry);   Serial.print("\t");
+  //Serial.println(rz);
+
+  i = i + 1;
+  delay(500);
+
+}
