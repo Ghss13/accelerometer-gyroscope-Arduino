@@ -1,0 +1,101 @@
+#include <Wire.h>
+#include <I2Cdev.h>
+#include <MPU6050.h>
+
+int16_t ax, ay, az, temperatura;
+int16_t gx, gy, gz;
+
+const int MPU=0x68;
+
+//Usado para calcular o angulo - Variaveis do acelerometro
+double accXangle;
+double accYangle;
+double accZangle;
+//Usado para calcular o angulo - Variaveis do giroscopio
+double gyroXangle = 180;
+double gyroYangle = 180;
+double gyroZangle = 180;
+
+uint32_t timer;
+
+void setup() {
+ 
+  Wire.begin();
+
+  // Inicializando a comunicação serial
+  // funciona em 8MHz ou em 16MHz
+  Serial.begin(9600);
+
+  // Iniciando dispositivos
+  Serial.println("Inicializando cominicação I2C...");
+
+  // Testando a conexão com a MPU6050
+  Serial.println("Testando a conexão com MPU6050...");
+  Serial.println(accelgyro.testConnection() ? "MPU6050 conectada com sucesso" : "Falha na conexão com a MPU6050");
+    
+  timer = micros();
+  
+  //inicia I2C
+  Wire.beginTransmission(MPU);  //Inicia transmissão para o endereço do MPU
+  Wire.write(0x6B);             
+   
+  //Inicializa o MPU-6050
+  Wire.write(0); 
+  Wire.endTransmission(true);
+}
+
+void loop() {
+
+//-----------------------------------------------------------------------------------------------
+  Wire.beginTransmission(MPU);      //transmite
+  Wire.write(0x3B);                 // Endereço 0x3B (ACCEL_XOUT_H)
+  Wire.endTransmission(false);     //Finaliza transmissão
+  
+  Wire.requestFrom(MPU,14,true);   //requisita bytes
+
+  timer = micros();
+   
+  //Armazena o valor dos sensores nas variaveis correspondentes
+  gx=Wire.read()<<8|Wire.read();  //0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)     
+  gy=Wire.read()<<8|Wire.read();  //0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
+  gz=Wire.read()<<8|Wire.read();  //0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
+  temperatura=Wire.read()<<8|Wire.read();  //0x41 (TEMP_OUT_H) & 0x42 (TEMP_OUT_L)
+  ax=Wire.read()<<8|Wire.read();  //0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
+  ay=Wire.read()<<8|Wire.read();  //0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
+  az=Wire.read()<<8|Wire.read();  //0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
+//-----------------------------------------------------------------------------------------------
+  // Calcular os angulos com base nos sensores do acelerometro
+  accXangle = (atan2(ax,az) + PI) * RAD_TO_DEG;
+  accYangle = (atan2(ay,az) + PI) * RAD_TO_DEG;
+  accZangle = (atan2(ax,ay) + PI) * RAD_TO_DEG;  
+
+  double gyroXrate = ((double)gx / 131.0);
+  double gyroYrate = -((double)gy / 131.0);
+  double gyroZrate = -((double)gz / 131.0);
+  
+  //###################### Calcular o ângulo de giro sem qualquer filtro ######################### 
+  gyroXangle += gyroXrate*((double)(micros()-timer)/1000000); 
+  gyroYangle += gyroYrate*((double)(micros()-timer)/1000000);
+  gyroZangle += gyroZrate*((double)(micros()-timer)/1000000);
+ 
+
+  timer = micros();
+  
+  // A taxa de amostras máxima do acelerometro é de 1KHz
+  delay(1); 
+
+  
+  //Angulo Giroscopio x/y/z
+  Serial.print(gyroXangle); Serial.print("\t");
+  Serial.print(gyroYangle); Serial.print("\t"); 
+  Serial.print(gyroZangle); Serial.print("\t\t");
+
+  //Acelerômetro x/y/z
+  Serial.print(accXangle); Serial.print("\t");
+  Serial.print(accYangle); Serial.print("\t"); 
+  Serial.print(accZangle); Serial.print("\t");
+  
+  Serial.print("\n");
+  
+  delay(1); 
+}
